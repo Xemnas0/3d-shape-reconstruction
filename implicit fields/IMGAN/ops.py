@@ -1,15 +1,5 @@
 import numpy as np
-
-# import tf ignoring future warning and deprecations
-import warnings
-
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=FutureWarning)
-    import tensorflow as tf
-
-    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-
-
+import tensorflow as tf
 
 
 def init_weights(shape, name):
@@ -28,9 +18,6 @@ def batch_norm(input, phase_train):
     return tf.contrib.layers.batch_norm(input, decay=0.999, updates_collections=None, epsilon=1e-5, scale=True,
                                         is_training=phase_train)
 
-
-# better using instance normalization since the batch size is 1
-# return tf.contrib.layers.instance_norm(input)
 
 def linear(input_, output_size, scope):
     shape = input_.get_shape().as_list()

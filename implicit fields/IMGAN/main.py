@@ -1,7 +1,6 @@
 import os
 import scipy.misc
 import numpy as np
-import h5py
 
 from model import IMAE
 from modelz import ZGAN
@@ -55,7 +54,9 @@ def main(_):
                 checkpoint_dir=FLAGS.checkpoint_dir,
                 sample_dir=FLAGS.sample_dir,
                 data_dir=FLAGS.data_dir)
-
+            # imae.test_interp(FLAGS)
+            imae.test(FLAGS)
+            exit(1)
             if FLAGS.train:
                 imae.train(FLAGS)
             else:
@@ -102,7 +103,8 @@ def main(_):
                     checkpoint_dir=FLAGS.checkpoint_dir,
                     sample_dir=FLAGS.sample_dir,
                     data_dir=FLAGS.data_dir)
-                imae.test_z(FLAGS, generated_z, 128)
+                generation_resolution = 128  # Change this
+                imae.test_z(FLAGS, generated_z, generation_resolution)
 
             '''
             #option 2 use filtered z

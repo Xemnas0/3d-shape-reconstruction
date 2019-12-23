@@ -1,24 +1,17 @@
 import os
+import sys
 import time
 import math
 from glob import glob
+import tensorflow as tf
 import numpy as np
 import h5py
 import cv2
 import mcubes
 
+from tqdm import tqdm, trange
+
 from ops import *
-
-# import tf ignoring future warning and deprecations
-import warnings
-
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=FutureWarning)
-    import tensorflow as tf
-
-    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-
-
 
 
 class IMAE(object):
@@ -193,7 +186,8 @@ class IMAE(object):
             np.random.shuffle(batch_index_list)
             avg_loss = 0
             avg_num = 0
-            for idx in range(0, batch_idxs):
+            pbar = tqdm(range(0, batch_idxs))
+            for idx in pbar:
                 for minib in range(batch_num):
                     dxb = batch_index_list[idx]
                     batch_voxels = self.data_voxels[dxb:dxb + 1]
@@ -211,8 +205,8 @@ class IMAE(object):
                     avg_loss += errAE
                     avg_num += 1
                     if (idx % 16 == 0):
-                        print("Epoch: [%2d/%2d] [%4d/%4d] time: %4.4f, loss: %.8f, avgloss: %.8f" % (
-                        epoch, config.epoch, idx, batch_idxs, time.time() - start_time, errAE, avg_loss / avg_num))
+                        pbar.set_description("Epoch: [%2d/%2d] [%4d/%4d] time: %4.4f, loss: %.8f, avgloss: %.8f" % (
+                            epoch, config.epoch, idx, batch_idxs, time.time() - start_time, errAE, avg_loss / avg_num))
 
                 if idx == batch_idxs - 1:
                     model_float = np.zeros([self.real_size, self.real_size, self.real_size], np.float32)
@@ -262,7 +256,7 @@ class IMAE(object):
 
         interp_size = 8
         idx1 = 0
-        idx2 = 2
+        idx2 = 3
 
         batch_voxels1 = self.data_voxels[idx1:idx1 + 1]
         batch_voxels2 = self.data_voxels[idx2:idx2 + 1]
@@ -304,14 +298,14 @@ class IMAE(object):
             img1 = np.clip(np.amax(model_float, axis=0) * 256, 0, 255).astype(np.uint8)
             img2 = np.clip(np.amax(model_float, axis=1) * 256, 0, 255).astype(np.uint8)
             img3 = np.clip(np.amax(model_float, axis=2) * 256, 0, 255).astype(np.uint8)
-            cv2.imwrite(config.sample_dir + "/" + str(t) + "_1t.png", img1)
-            cv2.imwrite(config.sample_dir + "/" + str(t) + "_2t.png", img2)
-            cv2.imwrite(config.sample_dir + "/" + str(t) + "_3t.png", img3)
+            cv2.imwrite(config.sample_dir + "/interp/" + str(t) + "_1t.png", img1)
+            cv2.imwrite(config.sample_dir + "/interp/" + str(t) + "_2t.png", img2)
+            cv2.imwrite(config.sample_dir + "/interp/" + str(t) + "_3t.png", img3)
 
             thres = 0.5
             vertices, triangles = mcubes.marching_cubes(model_float, thres)
-            mcubes.export_mesh(vertices, triangles, config.sample_dir + "/" + "out" + str(t) + ".dae", str(t))
-
+            # mcubes.export_mesh(vertices, triangles, config.sample_dir + "/interp/" + "out" + str(t) + ".dae", str(t))
+            mcubes.export_obj(vertices, triangles, config.sample_dir + "/interp/" + "out" + str(t) + ".obj")
             print("[sample interpolation]")
 
     def test(self, config):
@@ -329,11 +323,11 @@ class IMAE(object):
 
         for t in range(16):
             model_float = np.zeros([self.real_size + 2, self.real_size + 2, self.real_size + 2], np.float32)
+            batch_voxels = self.data_voxels[t:t + 1]
             for i in range(multiplier):
                 for j in range(multiplier):
                     for k in range(multiplier):
                         minib = i * multiplier2 + j * multiplier + k
-                        batch_voxels = self.data_voxels[t:t + 1]
                         model_out = self.sess.run(self.sG,
                                                   feed_dict={
                                                       self.vox3d: batch_voxels,
@@ -347,13 +341,20 @@ class IMAE(object):
             img1 = np.clip(np.amax(model_float, axis=0) * 256, 0, 255).astype(np.uint8)
             img2 = np.clip(np.amax(model_float, axis=1) * 256, 0, 255).astype(np.uint8)
             img3 = np.clip(np.amax(model_float, axis=2) * 256, 0, 255).astype(np.uint8)
-            cv2.imwrite(config.sample_dir + "/" + str(t) + "_1t.png", img1)
-            cv2.imwrite(config.sample_dir + "/" + str(t) + "_2t.png", img2)
-            cv2.imwrite(config.sample_dir + "/" + str(t) + "_3t.png", img3)
+            cv2.imwrite(config.sample_dir + "/ae/" + str(t) + "_1t.png", img1)
+            cv2.imwrite(config.sample_dir + "/ae/" + str(t) + "_2t.png", img2)
+            cv2.imwrite(config.sample_dir + "/ae/" + str(t) + "_3t.png", img3)
 
             thres = 0.5
+            # Generated sample
             vertices, triangles = mcubes.marching_cubes(model_float, thres)
-            mcubes.export_mesh(vertices, triangles, config.sample_dir + "/" + "out" + str(t) + ".dae", str(t))
+            # mcubes.export_mesh(vertices, triangles, config.sample_dir + "/" + "out" + str(t) + ".dae", str(t))
+            mcubes.export_obj(vertices, triangles, config.sample_dir + "/ae/" + "out" + str(t) + ".obj")
+
+            # Original sample
+            batch_voxels = batch_voxels[0, ..., 0]
+            vertices, triangles = mcubes.marching_cubes(batch_voxels, thres)
+            mcubes.export_obj(vertices, triangles, config.sample_dir + "/ae/" + "out" + str(t) + "_original" + ".obj")
 
             print("[sample]")
 
@@ -370,8 +371,8 @@ class IMAE(object):
         hdf5_file = h5py.File(hdf5_path, mode='w')
         hdf5_file.create_dataset("zs", [chair_num, self.z_dim], np.float32)
 
-        for idx in range(0, chair_num):
-            print(idx)
+        for idx in tqdm(range(0, chair_num)):
+            # print(idx)
             batch_voxels = self.data_voxels[idx:idx + 1]
             z_out = self.sess.run(self.sE,
                                   feed_dict={
@@ -416,12 +417,12 @@ class IMAE(object):
         coords = (coords + 0.5) / dim * 2.0 - 1.0
         coords = np.reshape(coords, [multiplier3, self.batch_size, 3])
 
-        for t in range(batch_z.shape[0]):
+        for t in tqdm(range(batch_z.shape[0])):
             model_float = np.zeros([dim + 2, dim + 2, dim + 2], np.float32)
-            for i in range(multiplier):
+            for i in tqdm(range(multiplier)):
                 for j in range(multiplier):
                     for k in range(multiplier):
-                        print(t, i, j, k)
+                        # print(t, i, j, k)
                         minib = i * multiplier2 + j * multiplier + k
                         model_out = self.sess.run(self.zG,
                                                   feed_dict={
@@ -439,9 +440,9 @@ class IMAE(object):
 
             thres = 0.5
             vertices, triangles = mcubes.marching_cubes(model_float, thres)
-            mcubes.export_mesh(vertices, triangles, config.sample_dir + "/" + "out" + str(t) + ".dae", str(t))
-
-            print("[sample GAN]")
+            # mcubes.export_mesh(vertices, triangles, config.sample_dir + "/" + "out" + str(t) + ".dae", str(t))
+            mcubes.export_obj(vertices, triangles, config.sample_dir + "/" + "out" + str(t) + ".obj")
+            # print("[sample GAN]")
 
     def test_z_pc(self, config, batch_z, dim):
         could_load, checkpoint_counter = self.load(self.checkpoint_dir)

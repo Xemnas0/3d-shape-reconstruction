@@ -2,22 +2,12 @@ import os
 import time
 import math
 from glob import glob
+import tensorflow as tf
 import numpy as np
 import h5py
 import cv2
-
+from tqdm import tqdm
 from ops import *
-
-# import tf ignoring future warning and deprecations
-import warnings
-
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=FutureWarning)
-    import tensorflow as tf
-
-    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-
-
 
 
 class ZGAN(object):
@@ -123,7 +113,8 @@ class ZGAN(object):
         batch_size = 50
         batch_num = int(batch_index_num / batch_size)
 
-        for epoch in range(counter, config.epoch + 1):
+        pbar = tqdm(range(counter, config.epoch + 1))
+        for epoch in pbar:
             np.random.shuffle(batch_index_list)
             errD_total = 0
             errG_total = 0
@@ -145,8 +136,9 @@ class ZGAN(object):
                 errD_total += errD
                 errG_total += errG
 
-            print("Epoch: [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" % (
+            pbar.set_description("Epoch: [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" % (
                 epoch, config.epoch, time.time() - start_time, errD_total / batch_num, errG_total / batch_num))
+            # print("Epoch: [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" % (epoch, config.epoch, time.time() - start_time, errD_total/batch_num, errG_total/batch_num))
 
             if epoch % 1000 == 0:
                 self.save(config.checkpoint_dir, epoch)
